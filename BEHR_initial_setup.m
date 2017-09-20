@@ -26,6 +26,7 @@ template_file = fullfile(constants_path,template_filename);
         
 make_paths_file();
 add_code_paths();
+make_output_paths();
 build_omi_python();
 
     function make_paths_file
@@ -108,9 +109,9 @@ build_omi_python();
         
         % Matlab file folders
         paths.sp_mat_dir.comment = sprintf('The mounted path to the directory on the file server at %s containing OMI_SP_vX-YZ_yyyymmdd.mat files. The file server should be mounted on your computer.',sat_file_server);
-        paths.sp_mat_dir.default = fullfile(sat_folder, 'SAT', 'BEHR', 'SP_Files_2014');
+        paths.sp_mat_dir.default = fullfile(paths.behr_core.default, 'Output', 'SP_Files');
         paths.behr_mat_dir.comment = sprintf('The mounted path to the directory on the file server at %s containing OMI_BEHR_vX-YZ_yyyymmdd.mat files. The file server should be mounted on your computer.',sat_file_server);
-        paths.behr_mat_dir.default = fullfile(sat_folder, 'SAT', 'BEHR', 'BEHR_Files_2014');
+        paths.behr_mat_dir.default = fullfile(paths.behr_core.default, 'Output', 'BEHR_Files');
         
         % OMI and ancillary data folders
         paths.omno2_dir.comment = sprintf('The OMNO2 directory on the file server at %s. It should contain folders organized by year and month with OMI-Aura_L2-OMNO2 files in them. The file server should be mounted on your computer.',sat_file_server);
@@ -188,6 +189,36 @@ build_omi_python();
                 rethrow(err)
             end
         end
+    end
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Make the default output directories %
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function make_output_paths
+        paths_to_create = {};
+        if exist(behr_paths.sp_mat_dir, 'dir')
+            paths_to_create{end+1} = behr_paths.sp_mat_dir;
+        end
+        
+        if exist(behr_paths.behr_mat_dir, 'dir')
+            paths_to_create{end+1} = behr_paths.behr_mat_dir;
+        end
+        
+        fprintf('\n');
+        if numel(paths_to_create) == 0
+            fprintf('All output paths already exist.\n');
+        else
+            fprintf('I can make the default output paths for BEHR data for you.\n');
+            fprintf('  This would create:\n\t%s\n', strjoin(paths_to_create, '\n\t'));
+            if strcmpi(input('Make these directories? (y to do so, any other value to skip): ', 's'), 'y')
+                for a=1:numel(paths_to_create)
+                    mkdir(paths_to_create{a});
+                    fprintf('    Created %s\n', paths_to_create{a});
+                end
+            end
+        end
+        
+        input('Press ENTER to continue','s');
     end
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
