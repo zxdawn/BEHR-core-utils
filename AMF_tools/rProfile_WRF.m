@@ -75,6 +75,7 @@ E = JLLErrors;
 parser = inputParser;
 parser.addOptional('wrf_output_path', '', @ischar);
 parser.addParameter('err_missing_att', true);
+parser.addParameter('clip_at_int_limits', true);
 parser.addParameter('DEBUG_LEVEL', 1);
 
 parser.parse(varargin{:});
@@ -83,6 +84,7 @@ pout = parser.Results;
 DEBUG_LEVEL = pout.DEBUG_LEVEL;
 error_if_missing_attr = pout.err_missing_att;
 wrf_output_path = pout.wrf_output_path;
+clip_at_int_limits = pout.clip_at_int_limits;
 
 if ~isnumeric(DEBUG_LEVEL) || ~isscalar(DEBUG_LEVEL)
     E.badinput('DEBUG_LEVEL must be a scalar number')
@@ -96,6 +98,18 @@ end
 % what likely went wrong. The error will take two additional arguments when
 % called: the variable name and the file name.
 E.addCustomError('ncvar_not_found','The variable %s is not defined in the file %s. Likely this file was not processed with (slurm)run_wrf_output.sh, or the processing failed before writing the calculated quantites.');
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%% CHECK DEPENDENCIES %%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+G = GitChecker;
+% Require that WRF_Utils has the version of find_wrf_tropopause that has
+% been updated to identify jumps in the tropopause pressure and the general
+% utils have been updated to include the floodfill algorithm needed by 
+% find_wrf_tropopause.
+G.addReqCommits(behr_paths.wrf_utils, '9272d08');
+G.addReqCommits(behr_paths.utils, '51a0869');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%% INPUT CHECKING %%%%%
@@ -276,14 +290,16 @@ end
         % do not need exp(interp_temp) since did not take the log of
         % tmp_temp
         
-        last_below_surf = find(pressures > surfPres(p),1,'last')-1;
-        interp_no2(1:last_below_surf,:) = nan;
-        interp_temp(1:last_below_surf,:) = nan;
-        
         pTropo = nanmean(tmp_pTropo);
-        last_up_tropo = find(pressures < pTropo,1,'first')+1;
-        interp_no2(last_up_tropo:end,:) = nan;
-        interp_temp(last_up_tropo:end,:) = nan;
+        
+        if clip_at_int_limits
+            last_below_surf = find(pressures > surfPres(p),1,'last')-1;
+            interp_no2(1:last_below_surf,:) = nan;
+            interp_temp(1:last_below_surf,:) = nan;
+            last_up_tropo = find(pressures < pTropo,1,'first')+1;
+            interp_no2(last_up_tropo:end,:) = nan;
+            interp_temp(last_up_tropo:end,:) = nan;
+        end
         
         no2_vec = nanmean(interp_no2,2);
         temp_vec = nanmean(interp_temp,2);
@@ -298,7 +314,7 @@ end
         day_in = day(date_num_in);
         
         omi_utc_mean = omi_time_conv(nanmean(omi_time(:)));
-        utc_hr = round(hour(omi_utc_mean));
+        utc_hr = round(hour(omi_utc_mean) + minute(omi_utc_mean)/60);
         if strcmpi(profile_mode, 'daily')
             file_name = sprintf('wrfout_*_%04d-%02d-%02d_%02d-00-00', year_in, month_in, day_in, utc_hr);
             % Allow for the possibility that the filenames are "unsanitized" and have colons in them still
