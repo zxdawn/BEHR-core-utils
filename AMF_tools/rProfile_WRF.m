@@ -1,4 +1,4 @@
-function [ no2_bins, temp_bins, wrf_file, TropoPres, tropopause_interp_flag, pres_mode, temp_mode ] = rProfile_WRF( date_in, profile_mode, region, loncorns, latcorns, omi_time, surfPres, pressures, varargin )
+function [ no2_bins, lno_bins, lno2_bins, temp_bins, wrf_file, TropoPres, tropopause_interp_flag, pres_mode, temp_mode ] = rProfile_WRF( date_in, profile_mode, region, loncorns, latcorns, omi_time, surfPres, pressures, varargin )
 
 %RPROFILE_WRF Reads WRF NO2 profiles and averages them to pixels.
 %   This function is the successor to rProfile_US and serves essentially
@@ -16,7 +16,7 @@ function [ no2_bins, temp_bins, wrf_file, TropoPres, tropopause_interp_flag, pre
 %   Further this will read the profiles directly from the netCDF files
 %   containing the WRF output, processed by the slurmrun_wrf_output.sh
 %   utility. It will look for WRF_BEHR files. These should have variables
-%   no2, XLAT, XLONG, and pres. (pres is calculated as the sum of the
+%   no2, lno, lno2, XLAT, XLONG, and pres. (pres is calculated as the sum of the
 %   original WRF variables P and PB, perturbation and base pressure. See
 %   calculated_quantities.nco and read_wrf_output.sh in the WRF_Utils
 %   folder.)
@@ -162,11 +162,13 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-[wrf_no2, wrf_temp, wrf_pres, wrf_lon, wrf_lat, wrf_file,wrf_tropopres, pres_mode, temp_mode,tropopause_interp_indx] = load_wrf_vars();
+[wrf_no2, wrf_lno, wrf_lno2, wrf_temp, wrf_pres, wrf_lon, wrf_lat, wrf_file,wrf_tropopres, pres_mode, temp_mode,tropopause_interp_indx] = load_wrf_vars();
 num_profs = numel(wrf_lon);
 prof_length = size(wrf_no2,3);
 num_pix = numel(surfPres);
 no2_bins = nan(length(pressures), size(surfPres,1), size(surfPres,2));
+lno_bins = nan(length(pressures), size(surfPres,1), size(surfPres,2));
+lno2_bins = nan(length(pressures), size(surfPres,1), size(surfPres,2));
 temp_bins = nan(length(pressures), size(surfPres,1), size(surfPres,2));
 TropoPres = nan(size(surfPres));
 tropopause_interp_flag = false(size(surfPres));
@@ -196,10 +198,14 @@ perm_vec(3) = [];
 perm_vec = [3, perm_vec];
 
 wrf_no2 = permute(wrf_no2, perm_vec);
+wrf_lno = permute(wrf_lno, perm_vec);
+wrf_lno2 = permute(wrf_lno2, perm_vec);
 wrf_temp = permute(wrf_temp, perm_vec);
 wrf_pres = permute(wrf_pres, perm_vec);
 
 wrf_no2 = reshape(wrf_no2, prof_length, num_profs);
+wrf_lno = reshape(wrf_lno, prof_length, num_profs);
+wrf_lno2 = reshape(wrf_lno2, prof_length, num_profs);
 wrf_temp = reshape(wrf_temp, prof_length, num_profs);
 wrf_pres = reshape(wrf_pres, prof_length, num_profs);
 wrf_lon = reshape(wrf_lon, 1, num_profs);
@@ -213,11 +219,10 @@ for p=1:num_pix
         continue
     end
 
-    [no2_bins(:,p), temp_bins(:,p), TropoPres(p), tropopause_interp_flag(p)] = avg_apriori();    
+    [no2_bins(:,p), lno_bins(:,p), lno2_bins(:,p),temp_bins(:,p), TropoPres(p), tropopause_interp_flag(p)] = avg_apriori();    
 end
 
-
-    function [no2_vec, temp_vec, pTropo, trop_interp_flag] = avg_apriori()
+    function [no2_vec, lno_vec, lno2_vec, temp_vec, pTropo, trop_interp_flag] = avg_apriori()
         xall = loncorns(:,p);
         xall(5) = xall(1);
         
@@ -230,6 +235,8 @@ end
         
         xx = wrf_lon < max(xall) & wrf_lon > min(xall) & wrf_lat < max(yall) & wrf_lat > min(yall);
         tmp_no2 = wrf_no2(:,xx);
+        tmp_lno = wrf_lno(:,xx);
+        tmp_lno2 = wrf_lno2(:,xx);
         tmp_temp = wrf_temp(:,xx);
         tmp_pres = wrf_pres(:,xx);
         tmp_lon = wrf_lon(xx);
@@ -247,21 +254,25 @@ end
         if sum(yy) < 1
             %E.callError('no_prof','WRF Profile not found for pixel near %.1, %.1f',mean(xall),mean(yall));
             no2_vec = nan(length(pressures),1);
+            lno_vec = nan(length(pressures),1);
+            lno2_vec = nan(length(pressures),1);
             temp_vec = nan(length(pressures),1);
             pTropo = nan;
             return
         end
         
         tmp_no2(:,~yy) = [];
+        tmp_lno(:,~yy) = [];
+        tmp_lno2(:,~yy) = [];
         tmp_temp(:,~yy) = [];
         tmp_pres(:,~yy) = [];
         tmp_pTropo(~yy) = [];
         
         
-        % Interpolate all the NO2 and temperature profiles to the input
+        % Interpolate all the NO2, lno, lno2 and temperature profiles to the input
         % pressures, then average them. Extrapolate so that later we can be
         % sure to have one bin below the surface pressure for omiAmfAK2 and
-        % integPr2. Interpolate NO2 in log-log space to account for the
+        % integPr2. Interpolate NO2, lno and lno2 in log-log space to account for the
         % exponential dependence of pressure on altitude and the often
         % exponential decrease of concentration with altitude. For
         % temperature, since a lapse rate implicitly assumes a linear
@@ -275,34 +286,46 @@ end
         % therefore, T should be proportional to ln(p)
 
         interp_no2 = nan(length(pressures), size(tmp_no2,2));
+        interp_lno = nan(length(pressures), size(tmp_lno,2));
+        interp_lno2 = nan(length(pressures), size(tmp_lno2,2));
         interp_temp = nan(length(pressures), size(tmp_temp,2));
         
         if ~iscolumn(pressures); pressures = pressures'; end
         
         for a=1:size(tmp_no2,2)
             interp_no2(:,a) = interp1(log(tmp_pres(:,a)), log(tmp_no2(:,a)), log(pressures), 'linear', 'extrap');
+            interp_lno(:,a) = interp1(log(tmp_pres(:,a)), log(tmp_lno(:,a)), log(pressures), 'linear', 'extrap');
+            interp_lno2(:,a) = interp1(log(tmp_pres(:,a)), log(tmp_lno2(:,a)), log(pressures), 'linear', 'extrap');
             interp_temp(:,a) = interp1(log(tmp_pres(:,a)), tmp_temp(:,a), log(pressures), 'linear', 'extrap');
         end
         
         interp_no2 = exp(interp_no2);
+        interp_lno = exp(interp_lno);
+        interp_lno2 = exp(interp_lno2);
         % do not need exp(interp_temp) since did not take the log of
         % tmp_temp
         
         last_below_surf = find(pressures > surfPres(p),1,'last')-1;
         interp_no2(1:last_below_surf,:) = nan;
+        interp_lno(1:last_below_surf,:) = nan;
+        interp_lno2(1:last_below_surf,:) = nan;
         interp_temp(1:last_below_surf,:) = nan;
         
         pTropo = nanmean(tmp_pTropo);
         last_up_tropo = find(pressures < pTropo,1,'first')+1;
         interp_no2(last_up_tropo:end,:) = nan;
+        interp_lno(last_up_tropo:end,:) = nan;
+        interp_lno2(last_up_tropo:end,:) = nan;
         interp_temp(last_up_tropo:end,:) = nan;
         
         no2_vec = nanmean(interp_no2,2);
+        lno_vec = nanmean(interp_lno,2);
+        lno2_vec = nanmean(interp_lno2,2);
         temp_vec = nanmean(interp_temp,2);
         
     end
 
-   function [wrf_no2, wrf_temp, wrf_pres, wrf_lon, wrf_lat, wrf_file, wrf_tropopres,pressure_mode, temperature_mode,tropopause_interp_indx] = load_wrf_vars()
+   function [wrf_no2, wrf_lno, wrf_lno2, wrf_temp, wrf_pres, wrf_lon, wrf_lat, wrf_file, wrf_tropopres,pressure_mode, temperature_mode,tropopause_interp_indx] = load_wrf_vars()
        % Find the file for this day and the nearest hour May be "wrfout" or
         % "wrfout_subset"
         year_in = year(date_num_in);
@@ -346,14 +369,38 @@ end
                 rethrow(err);
             end
         end
-        
+
+        try
+            wrf_lno = ncread(wrf_info.Filename, 'lno');
+        catch err
+            if strcmp(err.identifier,'MATLAB:imagesci:netcdf:unknownLocation')
+                E.callCustomError('ncvar_not_found','lno',F(1).name);
+            else
+                rethrow(err);
+            end
+        end
+
+        try
+            wrf_lno2 = ncread(wrf_info.Filename, 'lno2');
+        catch err
+            if strcmp(err.identifier,'MATLAB:imagesci:netcdf:unknownLocation')
+                E.callCustomError('ncvar_not_found','lno2',F(1).name);
+            else
+                rethrow(err);
+            end
+        end
+
         wrf_no2_units = ncreadatt_default(wrf_info.Filename, 'no2', 'units', 'ppm', 'fatal_if_missing', error_if_missing_attr);
-        
+        wrf_lno_units = ncreadatt_default(wrf_info.Filename, 'lno', 'units', 'ppm', 'fatal_if_missing', error_if_missing_attr);
+        wrf_lno2_units = ncreadatt_default(wrf_info.Filename, 'lno2', 'units', 'ppm', 'fatal_if_missing', error_if_missing_attr);
+
         % Convert to be an unscaled mixing ratio (parts-per-part). Allow
         % the units to be different capitalization (i.e. since CMAQ seems
         % to output units of ppmV instead of ppm or ppmv).
         wrf_no2 = convert_units(wrf_no2, wrf_no2_units, 'ppp', 'case', false);
-        
+        wrf_lno = convert_units(wrf_lno, wrf_lno_units, 'ppp', 'case', false);
+        wrf_lno2 = convert_units(wrf_lno2, wrf_lno2_units, 'ppp', 'case', false);
+
         wrf_vars = {wrf_info.Variables.Name};
         pres_precomputed = ismember('pres', wrf_vars);
         temp_precomputed = ismember('TT', wrf_vars);
