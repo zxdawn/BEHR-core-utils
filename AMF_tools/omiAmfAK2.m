@@ -182,7 +182,7 @@ for i=1:numel(pTerr)
     % Xin 14 May 2018
     % Because vcdLtng(i) can't be 0, We must calculate amf_lnox now.
     if cldFrac(i) ~= 0 && cldRadFrac(i) ~= 0 && pCld(i)>pTropo(i)
-        amf_lnox(i) = (cldRadFrac(i) .* amfCld(i) + (1-cldRadFrac(i)).*amfClr(i)) .* vcdGnd(i) ./ vcdLtng(i)
+        amf_lnox(i) = (cldRadFrac(i) .* amfCld(i) + (1-cldRadFrac(i)).*amfClr(i)) .* vcdGnd(i) ./ vcdLtng(i);
     end
     % JLL 19 May 2015:
     % Added these lines to interpolate to the terrain & cloud pressures and

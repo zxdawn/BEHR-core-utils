@@ -239,6 +239,7 @@ end
         % the pixel first, then deal with the fact that the pixel is angled
         % relative to lat/lon.
         
+        fmin = 1E-30;
         xx = wrf_lon < max(xall) & wrf_lon > min(xall) & wrf_lat < max(yall) & wrf_lat > min(yall);
         tmp_no2 = wrf_no2(:,xx);
         tmp_lno = wrf_lno(:,xx);
@@ -249,6 +250,10 @@ end
         tmp_lat = wrf_lat(xx);
         tmp_elev = wrf_surf_elev(xx);
         tmp_pTropo = wrf_tropopres(xx);
+        xxx_lno = tmp_lno < fmin;
+        tmp_lno(xxx_lno) = fmin;
+        xxx_lno2 = tmp_lno2 < fmin;
+        tmp_lno2(xxx_lno2) = fmin;
         
         if any(xx(tropopause_interp_indx))
             trop_interp_flag = true;
@@ -333,7 +338,7 @@ end
             interp_no2(1:last_below_surf,:) = nan;
             interp_lno(1:last_below_surf,:) = nan;
             interp_lno2(1:last_below_surf,:) = nan;
-	    interp_temp(1:last_below_surf,:) = nan;
+            interp_temp(1:last_below_surf,:) = nan;
             last_up_tropo = find(pressures < pTropo,1,'first')+1;
             interp_no2(last_up_tropo:end,:) = nan;
             interp_lno(last_up_tropo:end,:) = nan;
