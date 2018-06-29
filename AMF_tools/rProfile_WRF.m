@@ -374,9 +374,11 @@ end
                 utc_min = 0
             elseif 15 <= minute(omi_utc_mean) < 45
                 utc_min = 30
+	    end
         elseif minute(omi_utc_mean) >= 45
             utc_hr = hour(omi_utc_mean) + 1
             utc_min = 0
+	end
             
         if strcmpi(profile_mode, 'daily')
             file_name = sprintf('wrfout_*_%04d-%02d-%02d_%02d-%02d-00', year_in, month_in, day_in, utc_hr, utc_min);
