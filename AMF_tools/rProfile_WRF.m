@@ -367,11 +367,21 @@ end
         day_in = day(date_num_in);
         
         omi_utc_mean = omi_time_conv(nanmean(omi_time(:)));
-        utc_hr = round(hour(omi_utc_mean) + minute(omi_utc_mean)/60);
+        % utc_hr = round(hour(omi_utc_mean) + minute(omi_utc_mean)/60);
+        if minute(omi_utc_mean) < 45
+            utc_hr = hour(omi_utc_mean)
+            if minute(omi_utc_mean) < 15
+                utc_min = 0
+            elseif 15 <= minute(omi_utc_mean) < 45
+                utc_min = 30
+        elseif minute(omi_utc_mean) >= 45
+            utc_hr = hour(omi_utc_mean) + 1
+            utc_min = 0
+            
         if strcmpi(profile_mode, 'daily')
-            file_name = sprintf('wrfout_*_%04d-%02d-%02d_%02d-00-00', year_in, month_in, day_in, utc_hr);
+            file_name = sprintf('wrfout_*_%04d-%02d-%02d_%02d-%02d-00', year_in, month_in, day_in, utc_hr, utc_min);
             % Allow for the possibility that the filenames are "unsanitized" and have colons in them still
-            file_name2 = sprintf('wrfout_*_%04d-%02d-%02d_%02d:00:00', year_in, month_in, day_in, utc_hr);
+            file_name2 = sprintf('wrfout_*_%04d-%02d-%02d_%02d:%02d:00', year_in, month_in, day_in, utc_hr, utc_min);
         elseif strcmpi(profile_mode, 'monthly')
             file_name = sprintf('WRF_BEHR_monthly_%02d.nc', month_in);
         end
