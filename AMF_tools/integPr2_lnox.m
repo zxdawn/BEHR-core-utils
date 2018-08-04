@@ -46,7 +46,7 @@
 %
 %..........................................................................
 
-function [vcd] = integPr2_lnox(mixingRatio_lno, mixingRatio_lno2, pressure, pressureSurface, varargin)
+function [vcd, vcd_lno2] = integPr2_lnox(mixingRatio_lno, mixingRatio_lno2, pressure, pressureSurface, varargin)
 
 E = JLLErrors;
 p = inputParser;
@@ -93,6 +93,7 @@ mg_lno2  = (28.97/6.02E23)*1E-3    *   9.8      *    1E-2     *     1E4;
 fmin = 1E-30;
 
 vcd  = 0;
+vcd_lno2 = 0;
 f_lno    = mixingRatio_lno;
 f_lno2    = mixingRatio_lno2;
 p    = pressure;
@@ -102,8 +103,6 @@ n    = numel(p);
 dvcd     = 0;
 deltaVcd_lno = zeros(numel(f_lno),1); % Changed to make these vectors on 9/26/2014 JLL
 deltaVcd_lno2 = zeros(numel(f_lno2),1); % Changed to make these vectors on 9/26/2014 JLL
-df_lno       = zeros(numel(f_lno),1);
-df_lno2       = zeros(numel(f_lno2),1);
 
 % If the surface pressure is above the tropopause pressure, i.e. the lower
 % integration limit is above the upper integration limit, return 0 b/c
@@ -114,6 +113,7 @@ df_lno2       = zeros(numel(f_lno2),1);
 % in omiAmfAK2.
 if pressureSurface <= pressureTropopause
     vcd = 0;
+    vcd_lno2 = 0;
     return
 end
 
@@ -141,6 +141,7 @@ end
 % Integrate................................................................
 if isnan(pressureSurface)
     vcd = nan;
+    vcd_lno2 = nan;
     return
 end
 
@@ -165,7 +166,9 @@ if any(isnan(deltaVcd_lno(i_initial:i_end)))
         warning('integPr2:nans_in_column', 'NaNs detected in partial columns. They will not be added into the total column density.')
     end
 end
+
 vcd = nansum2(deltaVcd_lno(i_initial:i_end)+deltaVcd_lno2(i_initial:i_end));
+vcd_lno2 = nansum2(deltaVcd_lno2(i_initial:i_end));
 
 
     function [f0] = interpolate_surface_pressure(p_in,f_in,p0_in)

@@ -1,6 +1,6 @@
 %OMIAMFAK2 - Compute OMI AMFs and AKs given scattering weights and NO2 profiles
 %
-%   [ amf, amfVis, amf_lnox, amfCld, amfClr, sc_weights, avgKernel, no2ProfileInterp,
+%   [ amf, amfVis, amf_lnox, amf_lnox_pickering, amfCld, amfClr, sc_weights, avgKernel, no2ProfileInterp,
 %     swPlev ] = omiAmfAK2( pTerr, pCld, cldFrac, cldRadFrac, pressure, 
 %     dAmfClr, dAmfCld, temperature, no2Profile, lnoProfile, lno2Profile) 
 %
@@ -28,6 +28,7 @@
 %       amfVis - the 2D array of AMFs for each pixel that will yield only visible columns (so EXCLUDING
 %           ghost column below clouds)
 %       amf_lnox - the 2D array of AMFs for each pixel that will yield total lnox columns
+%       amf_lnox_pickering - the 2D array of AMFs for each pixel that will yield total lnox columns (Pickering et al. 2016)
 %       amfCld - the 2D array of cloudy AMFs that are used for the total column AMF.
 %       amfClr - the 2D array of clear sky AMFs, used for both AMFs.
 %       sc_weights - the 3D array of combined scattering weights for the total column AMFs. These include
@@ -86,9 +87,10 @@
 %   Josh Laughner <joshlaugh5@gmail.com> 
 
 %   Xin 14 May 2018: added ouput for amf_lnox
+%   Xin 01 Aug 2018: added ouput for amf_lnox_pickering
 %   Xin Zhang <xinzhang1215@gmail.com>
 
-function [amf, amfVis, amf_lnox, amfCld, amfClr, sc_weights_clr, sc_weights_cld, avgKernel, no2ProfileInterp, swPlev ] = omiAmfAK2(pTerr, pTropo, pCld, cldFrac, cldRadFrac, pressure, dAmfClr, dAmfCld, temperature, no2Profile, lnoProfile, lno2Profile)
+function [amf, amfVis, amf_lnox, amf_lnox_pickering, amfCld, amfClr, sc_weights_clr, sc_weights_cld, avgKernel, no2ProfileInterp, swPlev ] = omiAmfAK2(pTerr, pTropo, pCld, cldFrac, cldRadFrac, pressure, dAmfClr, dAmfCld, temperature, no2Profile, lnoProfile, lno2Profile)
 
 % Each profile is expected to be a column in the no2Profile matrix.  Check
 % for this by ensuring that the first dimension of both profile matrices
@@ -123,6 +125,7 @@ vcdCld=nan(size(pTerr));
 amfClr=nan(size(pTerr));
 amfCld=nan(size(pTerr));
 amf_lnox=nan(size(pTerr));
+amf_lnox_pickering=nan(size(pTerr));
 
 
 % JLL 18 May 2015:
@@ -161,7 +164,7 @@ for i=1:numel(pTerr)
     vcdGnd(i) = integPr2(no2Profile(:,i), pressure, pTerr(i), pTropo(i), 'fatal_if_nans', true);
     if cldFrac(i) ~= 0 && cldRadFrac(i) ~= 0 && pCld(i)>pTropo(i)
         vcdCld(i) = integPr2(no2Profile(:,i), pressure, pCld(i), pTropo(i), 'fatal_if_nans', true);
-        vcdLtng(i) = integPr2_lnox(lnoProfile(:,i), lno2Profile(:,i), pressure, pTerr(i), pTropo(i), 'fatal_if_nans', true);
+        [vcdLtng(i), vcd_lno2(i)] = integPr2_lnox(lnoProfile(:,i), lno2Profile(:,i), pressure, pTerr(i), pTropo(i), 'fatal_if_nans', true);
     else
         vcdCld(i)=0;
     end
@@ -180,9 +183,10 @@ for i=1:numel(pTerr)
     end
 
     % Xin 14 May 2018
-    % Because vcdLtng(i) can't be 0, We must calculate amf_lnox now.
+    % Because vcdLtng(i) can't be 0, We must calculate amf_lnox and amf_lnox_pickering now.
     if cldFrac(i) ~= 0 && cldRadFrac(i) ~= 0 && pCld(i)>pTropo(i)
         amf_lnox(i) = (cldRadFrac(i) .* amfCld(i) + (1-cldRadFrac(i)).*amfClr(i)) .* vcdGnd(i) ./ vcdLtng(i);
+        amf_lnox_pickering(i) = (cldRadFrac(i) .* amfCld(i) + (1-cldRadFrac(i)).*amfClr(i)) .* vcd_lno2(i) ./ vcdLtng(i);
     end
     % JLL 19 May 2015:
     % Added these lines to interpolate to the terrain & cloud pressures and
@@ -235,6 +239,7 @@ amfVis = amf .* vcdGnd ./ (vcdCld .* cldFrac + vcdGnd .* (1 - cldFrac));
 amfVis(~isnan(amfVis)) = max(amfVis(~isnan(amfVis)), behr_min_amf_val());
 
 amf_lnox(~isnan(amf_lnox)) = max(amf_lnox(~isnan(amf_lnox)), behr_min_amf_val());
+amf_lnox_pickering(~isnan(amf_lnox_pickering)) = max(amf_lnox_pickering(~isnan(amf_lnox_pickering)), behr_min_amf_val());
 
 % There is an alternate way of calculating a visible-only AMF: calculate a
 % cloudy visible-only AMF by dividing the cloud modeled SCD by an

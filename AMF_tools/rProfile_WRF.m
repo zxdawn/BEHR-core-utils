@@ -1,4 +1,4 @@
-function [ no2_bins, lno_bins, lno2_bins, cldfra_bins, temp_bins, wrf_file, SurfPres, SurfPres_WRF, TropoPres, tropopause_interp_flag, pres_mode, temp_mode ] = rProfile_WRF( date_in, profile_mode, region, loncorns, latcorns, omi_time, globe_elevation, pressures, varargin )
+function [ no2_bins, lno_bins, lno2_bins, cldfra_bins, ic_bins, cg_bins, temp_bins, wrf_file, SurfPres, SurfPres_WRF, TropoPres, tropopause_interp_flag, pres_mode, temp_mode ] = rProfile_WRF( date_in, profile_mode, region, loncorns, latcorns, omi_time, globe_elevation, pressures, varargin )
 
 %RPROFILE_WRF Reads WRF NO2 profiles and averages them to pixels.
 %   This function is the successor to rProfile_US and serves essentially
@@ -16,8 +16,9 @@ function [ no2_bins, lno_bins, lno2_bins, cldfra_bins, temp_bins, wrf_file, Surf
 %   Further this will read the profiles directly from the netCDF files
 %   containing the WRF output, processed by the slurmrun_wrf_output.sh
 %   utility. It will look for WRF_BEHR files. These should have variables
-%   no2, lno, lno2, cldfra, XLAT, XLONG, and pres. (pres is calculated as
-%   the sum of the original WRF variables P and PB, perturbation and base pressure.
+%   no2, lno, lno2, cldfra, IC_FLASHCOUNT, CG_FLASHCOUNT, XLAT, XLONG, and pres.
+%   (pres is calculated as the sum of the original WRF variables P and PB,
+%   perturbation and base pressure.
 %   See calculated_quantities.nco and read_wrf_output.sh in the WRF_Utils folder.)
 %
 %   This can also use different profiles: monthly, daily, or hourly. These
@@ -163,7 +164,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-[wrf_no2, wrf_lno, wrf_lno2, wrf_cldfra, wrf_temp, wrf_pres, wrf_lon, wrf_lat, wrf_file, wrf_tropopres, wrf_surf_elev, pres_mode, temp_mode,tropopause_interp_indx] = load_wrf_vars();
+[wrf_no2, wrf_lno, wrf_lno2, wrf_cldfra, wrf_ic, wrf_cg, wrf_temp, wrf_pres, wrf_lon, wrf_lat, wrf_file, wrf_tropopres, wrf_surf_elev, pres_mode, temp_mode,tropopause_interp_indx] = load_wrf_vars();
 num_profs = numel(wrf_lon);
 prof_length = size(wrf_no2,3);
 
@@ -173,6 +174,8 @@ lno_bins = nan(length(pressures), size(globe_elevation,1), size(globe_elevation,
 lno2_bins = nan(length(pressures), size(globe_elevation,1), size(globe_elevation,2));
 temp_bins = nan(length(pressures), size(globe_elevation,1), size(globe_elevation,2));
 cldfra_bins = nan(size(globe_elevation));
+ic_bins = nan(size(globe_elevation));
+cg_bins = nan(size(globe_elevation));
 SurfPres = nan(size(globe_elevation));
 SurfPres_WRF = nan(size(globe_elevation));
 TropoPres = nan(size(globe_elevation));
@@ -206,6 +209,8 @@ wrf_no2 = permute(wrf_no2, perm_vec);
 wrf_lno = permute(wrf_lno, perm_vec);
 wrf_lno2 = permute(wrf_lno2, perm_vec);
 wrf_cldfra = permute(wrf_cldfra, perm_vec);
+wrf_ic = permute(wrf_ic, perm_vec);
+wrf_cg = permute(wrf_cg, perm_vec);
 wrf_temp = permute(wrf_temp, perm_vec);
 wrf_pres = permute(wrf_pres, perm_vec);
 
@@ -215,6 +220,8 @@ wrf_lno2 = reshape(wrf_lno2, prof_length, num_profs);
 wrf_temp = reshape(wrf_temp, prof_length, num_profs);
 wrf_pres = reshape(wrf_pres, prof_length, num_profs);
 wrf_cldfra = reshape(wrf_cldfra, 1, num_profs);
+wrf_ic = reshape(wrf_ic, 1, num_profs);
+wrf_cg = reshape(wrf_cg, 1, num_profs);
 wrf_lon = reshape(wrf_lon, 1, num_profs);
 wrf_lat = reshape(wrf_lat, 1, num_profs);
 wrf_tropopres = reshape(wrf_tropopres, 1, num_profs);
@@ -226,11 +233,11 @@ for p=1:num_pix
         continue
     end
 
-    [no2_bins(:,p), lno_bins(:,p), lno2_bins(:,p), cldfra_bins(p), temp_bins(:,p), SurfPres(p), SurfPres_WRF(p), TropoPres(p), tropopause_interp_flag(p)] = avg_apriori();    
+    [no2_bins(:,p), lno_bins(:,p), lno2_bins(:,p), cldfra_bins(p), ic_bins(p), cg_bins(p), temp_bins(:,p), SurfPres(p), SurfPres_WRF(p), TropoPres(p), tropopause_interp_flag(p)] = avg_apriori();
 end
 
 
-    function [no2_vec, lno_vec, lno2_vec, cldfra, temp_vec, pSurf, pSurf_WRF, pTropo, trop_interp_flag] = avg_apriori()
+    function [no2_vec, lno_vec, lno2_vec, cldfra, ic, cg, temp_vec, pSurf, pSurf_WRF, pTropo, trop_interp_flag] = avg_apriori()
         xall = loncorns(:,p);
         xall(5) = xall(1);
         
@@ -249,6 +256,8 @@ end
         tmp_temp = wrf_temp(:,xx);
         tmp_pres = wrf_pres(:,xx);
         tmp_cldfra = wrf_cldfra(xx);
+        tmp_ic = wrf_ic(xx);
+        tmp_cg = wrf_cg(xx);
         tmp_lon = wrf_lon(xx);
         tmp_lat = wrf_lat(xx);
         tmp_elev = wrf_surf_elev(xx);
@@ -273,6 +282,8 @@ end
             lno2_vec = nan(length(pressures),1);
             temp_vec = nan(length(pressures),1);
             cldfra = nan;
+            ic = nan;
+            cg = nan;
             pTropo = nan;
             pSurf = nan;
             pSurf_WRF = nan;
@@ -285,6 +296,8 @@ end
         tmp_temp(:,~yy) = [];
         tmp_pres(:,~yy) = [];
         tmp_cldfra(~yy) = [];
+        tmp_ic(~yy) = [];
+        tmp_cg(~yy) = [];
         tmp_elev(~yy) = [];
         tmp_pTropo(~yy) = [];
         
@@ -337,6 +350,8 @@ end
         % tmp_temp
         
         cldfra = nanmean(tmp_cldfra);
+        ic     = nanmean(tmp_ic);
+        cg     = nanmean(tmp_cg);
         pTropo = nanmean(tmp_pTropo);
         
         if clip_at_int_limits
@@ -359,7 +374,7 @@ end
         
     end
 
-   function [wrf_no2, wrf_lno, wrf_lno2, wrf_cldfra, wrf_temp, wrf_pres, wrf_lon, wrf_lat, wrf_file, wrf_tropopres, wrf_elevation, pressure_mode, temperature_mode,tropopause_interp_indx] = load_wrf_vars()
+   function [wrf_no2, wrf_lno, wrf_lno2, wrf_cldfra, wrf_ic, wrf_cg, wrf_temp, wrf_pres, wrf_lon, wrf_lat, wrf_file, wrf_tropopres, wrf_elevation, pressure_mode, temperature_mode,tropopause_interp_indx] = load_wrf_vars()
        % Find the file for this day and the nearest hour May be "wrfout" or
         % "wrfout_subset"
         year_in = year(date_num_in);
@@ -441,6 +456,26 @@ end
         catch err
             if strcmp(err.identifier,'MATLAB:imagesci:netcdf:unknownLocation')
                 E.callCustomError('ncvar_not_found','cldfra',F(1).name);
+            else
+                rethrow(err);
+            end
+        end
+
+        try
+            wrf_ic = ncread(wrf_info.Filename, 'IC_FLASHCOUNT');
+        catch err
+            if strcmp(err.identifier,'MATLAB:imagesci:netcdf:unknownLocation')
+                E.callCustomError('ncvar_not_found','IC_FLASHCOUNT',F(1).name);
+            else
+                rethrow(err);
+            end
+        end
+
+        try
+            wrf_cldfra = ncread(wrf_info.Filename, 'CG_FLASHCOUNT');
+        catch err
+            if strcmp(err.identifier,'MATLAB:imagesci:netcdf:unknownLocation')
+                E.callCustomError('ncvar_not_found','CG_FLASHCOUNT',F(1).name);
             else
                 rethrow(err);
             end
