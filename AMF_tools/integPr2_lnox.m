@@ -2,7 +2,7 @@
 
 % INTEGPR2_lnox Integrate mixing ratios over pressure
 %
-%   VCD = INTEGPR2_lnox(MIXINGRATIO, PRESSURE, PRESSURESURFACE) Integrates the
+%   VCD = INTEGPR2_lnox(MIXINGRATIO_LNO, MIXINGRATIO_LNO2, PRESSURE, PRESSURESURFACE) Integrates the
 %   profile given by MIXINGRATIO (which must be unscaled, i.e. mol/mol or
 %   volume/volume) defined at the vertical levels given by PRESSURE (which
 %   must be monotonically decreasing and given in hPa). PRESSURESURFACE is
@@ -51,14 +51,12 @@ function [vcd, vcd_lno2] = integPr2_lnox(mixingRatio_lno, mixingRatio_lno2, pres
 E = JLLErrors;
 p = inputParser;
 p.addOptional('pressureTropopause', [], @(x) isscalar(x) && isnumeric(x) && (isnan(x) || x > 0));
-p.addParameter('interp_pres', []);
 p.addParameter('fatal_if_nans', false);
 
 p.parse(varargin{:});
 pout = p.Results;
 
 pressureTropopause = pout.pressureTropopause;
-interpPres = pout.interp_pres;
 fatal_if_nans = pout.fatal_if_nans;
 
 if any(pressure<0)
@@ -74,17 +72,6 @@ end
 if isempty(pressureTropopause)
    pressureTropopause = min(pressure);
 end
-
-if isempty(interpPres)
-    if nargout > 1
-        E.callError('nargout','Without any interpPres values, p_out and f_out will not be set');
-    end
-else
-    % Make sure the interpolation pressure is within the pressure vector
-    % given.
-    interpPres = clipmat(interpPres, min(pressure), max(pressure));
-end
-
 
 %   mean molecular mass (kg)  *  g (m/s2)  *  (Pa/hPa)   *   (m2/cm2)
 mg_lno  = (30.01/6.02E23)*1E-3    *   9.8      *    1E-2     *     1E4;
