@@ -472,7 +472,7 @@ end
         end
 
         try
-            wrf_cldfra = ncread(wrf_info.Filename, 'CG_FLASHCOUNT');
+            wrf_cg = ncread(wrf_info.Filename, 'CG_FLASHCOUNT');
         catch err
             if strcmp(err.identifier,'MATLAB:imagesci:netcdf:unknownLocation')
                 E.callCustomError('ncvar_not_found','CG_FLASHCOUNT',F(1).name);
