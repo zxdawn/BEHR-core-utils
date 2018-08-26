@@ -122,6 +122,8 @@ alpha = min(alpha_i,10,'includenan');
 % Integrate to get clear, cloudy and lnox AMFs
 vcdGnd=nan(size(pTerr));
 vcdCld=nan(size(pTerr));
+vcdLtng=nan(size(pTerr));
+vcd_lno2=nan(size(pTerr));
 amfClr=nan(size(pTerr));
 amfCld=nan(size(pTerr));
 amf_lnox=nan(size(pTerr));
@@ -164,7 +166,6 @@ for i=1:numel(pTerr)
     vcdGnd(i) = integPr2(no2Profile(:,i), pressure, pTerr(i), pTropo(i), 'fatal_if_nans', true);
     if cldFrac(i) ~= 0 && cldRadFrac(i) ~= 0 && pCld(i)>pTropo(i)
         vcdCld(i) = integPr2(no2Profile(:,i), pressure, pCld(i), pTropo(i), 'fatal_if_nans', true);
-        [vcdLtng(i), vcd_lno2(i)] = integPr2_lnox(lnoProfile(:,i), lno2Profile(:,i), pressure, pTerr(i), pTropo(i), 'fatal_if_nans', true);
     else
         vcdCld(i)=0;
     end
@@ -185,6 +186,7 @@ for i=1:numel(pTerr)
     % Xin 14 May 2018
     % Because vcdLtng(i) can't be 0, We must calculate amf_lnox and amf_lnox_pickering now.
     if cldFrac(i) ~= 0 && cldRadFrac(i) ~= 0 && pCld(i)>pTropo(i)
+        [vcdLtng(i), vcd_lno2(i)] = integPr2_lnox(lnoProfile(:,i), lno2Profile(:,i), pressure, pTerr(i), pTropo(i), 'fatal_if_nans', true);
         amf_lnox(i) = (cldRadFrac(i) .* amfCld(i) + (1-cldRadFrac(i)).*amfClr(i)) .* vcdGnd(i) ./ vcdLtng(i);
         amf_lnox_pickering(i) = (cldRadFrac(i) .* amfCld(i) + (1-cldRadFrac(i)).*amfClr(i)) .* vcd_lno2(i) ./ vcdLtng(i);
     end
