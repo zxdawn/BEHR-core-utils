@@ -338,14 +338,14 @@ end
         
         for a=1:size(tmp_no2,2)
             interp_no2(:,a) = interp1(log(tmp_pres(:,a)), log(tmp_no2(:,a)), log(pressures), 'linear', 'extrap');
-            interp_lno(:,a) = interp1(log(tmp_pres(:,a)), log(tmp_lno(:,a)), log(pressures), 'linear', 'extrap');
-            interp_lno2(:,a) = interp1(log(tmp_pres(:,a)), log(tmp_lno2(:,a)), log(pressures), 'linear', 'extrap');
+            interp_lno(:,a) = interp1(log(tmp_pres(:,a)), tmp_lno(:,a), log(pressures), 'spline', 'extrap');
+            interp_lno2(:,a) = interp1(log(tmp_pres(:,a)), tmp_lno2(:,a), log(pressures), 'spline', 'extrap');
             interp_temp(:,a) = interp1(log(tmp_pres(:,a)), tmp_temp(:,a), log(pressures), 'linear', 'extrap');
         end
         
         interp_no2 = exp(interp_no2);
-        interp_lno = exp(interp_lno);
-        interp_lno2 = exp(interp_lno2);
+        % interp_lno = exp(interp_lno);
+        % interp_lno2 = exp(interp_lno2);
         % do not need exp(interp_temp) since did not take the log of
         % tmp_temp
         

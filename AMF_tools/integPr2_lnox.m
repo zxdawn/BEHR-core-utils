@@ -74,8 +74,7 @@ if isempty(pressureTropopause)
 end
 
 %   mean molecular mass (kg)  *  g (m/s2)  *  (Pa/hPa)   *   (m2/cm2)
-mg_lno  = (30.01/6.02E23)*1E-3    *   9.8      *    1E-2     *     1E4;
-mg_lno2  = (28.97/6.02E23)*1E-3    *   9.8      *    1E-2     *     1E4;
+mg = (28.97/6.02E23)*1E-3    *   9.8      *    1E-2     *     1E4;
 
 fmin = 1E-30;
 
@@ -133,16 +132,16 @@ if isnan(pressureSurface)
 end
 
 for i = 1:n-1
-    deltaVcd_lno(i) = (f_lno(i) + f_lno(i + 1)) .* (p(i) - p(i + 1)) ./ (2 * mg_lno);  %assume const mixing ratio in each layer
-    deltaVcd_lno2(i) = (f_lno2(i) + f_lno2(i + 1)) .* (p(i) - p(i + 1)) ./ (2 * mg_lno2);  %assume const mixing ratio in each layer
+    deltaVcd_lno(i) = (f_lno(i) + f_lno(i + 1)) .* (p(i) - p(i + 1)) ./ (2 * mg);  %assume const mixing ratio in each layer
+    deltaVcd_lno2(i) = (f_lno2(i) + f_lno2(i + 1)) .* (p(i) - p(i + 1)) ./ (2 * mg);  %assume const mixing ratio in each layer
     b_lno = (log(max(f_lno(i + 1),fmin)) - log(max(f_lno(i),fmin))) ./ (log(p(i + 1)) - log(p(i)));
     b_lno2 = (log(max(f_lno2(i + 1),fmin)) - log(max(f_lno2(i),fmin))) ./ (log(p(i + 1)) - log(p(i)));
 
     if f_lno(i) >= 0 && f_lno(i + 1)>=0 && abs(b_lno + 1) >= 0.01;
-        deltaVcd_lno(i) = (f_lno(i)*p(i) - f_lno(i + 1)*p(i + 1)) ./ (b_lno + 1) ./ mg_lno;    %assume exponential variation in each layer
+        deltaVcd_lno(i) = (f_lno(i)*p(i) - f_lno(i + 1)*p(i + 1)) ./ (b_lno + 1) ./ mg;    %assume exponential variation in each layer
     end
     if f_lno2(i) >= 0 && f_lno2(i + 1)>=0 && abs(b_lno2 + 1) >= 0.01;
-        deltaVcd_lno2(i) = (f_lno2(i)*p(i) - f_lno2(i + 1)*p(i + 1)) ./ (b_lno2 + 1) ./ mg_lno2;    %assume exponential variation in each layer
+        deltaVcd_lno2(i) = (f_lno2(i)*p(i) - f_lno2(i + 1)*p(i + 1)) ./ (b_lno2 + 1) ./ mg;    %assume exponential variation in each layer
     end    
 end
 
