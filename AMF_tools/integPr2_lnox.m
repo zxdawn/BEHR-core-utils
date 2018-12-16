@@ -8,6 +8,17 @@
 %   must be monotonically decreasing and given in hPa). PRESSURESURFACE is
 %   the lower level of integration, must be a scalar also given in hPa. The
 %   upper limit is taken as the minimum value in PRESSURE.
+%
+%   [ VCD, P_OUT, FLNO_OUT, FLNO2_OUT ] = INTEGPR2( ___, 'interp_pres', INTERP_PRES )
+%   Allows you to specify one or more pressures as the vector INTERP_PRES
+%   that the mixing ratio vector will be interpolated to. P_OUT will be
+%   PRESSURES with the INTERP_PRES inserted and F*_OUT will be the vector of
+%   mixing ratios with extra entries corresponding to the INTERP_PRES
+%   pressures. Note that the size of P_OUT and F_OUT are not guaranteed to
+%   be numel(pressures) + numel(interp_pres); if any of the INTERP_PRES
+%   pressures are already present in PRESSURES, then no extra level will be
+%   added for that INTERP_PRES value.
+%
 
 % Legacy comment block from Ashley Russell:
 %..........................................................................
@@ -46,17 +57,19 @@
 %
 %..........................................................................
 
-function [vcd, vcd_lno2] = integPr2_lnox(mixingRatio_lno, mixingRatio_lno2, pressure, pressureSurface, varargin)
+function [vcd, vcd_lno2, p_out, flno_out, flno2_out] = integPr2_lnox(mixingRatio_lno, mixingRatio_lno2, pressure, pressureSurface, varargin)
 
 E = JLLErrors;
 p = inputParser;
 p.addOptional('pressureTropopause', [], @(x) isscalar(x) && isnumeric(x) && (isnan(x) || x > 0));
+p.addParameter('interp_pres', []);
 p.addParameter('fatal_if_nans', false);
 
 p.parse(varargin{:});
 pout = p.Results;
 
 pressureTropopause = pout.pressureTropopause;
+interpPres = pout.interp_pres;
 fatal_if_nans = pout.fatal_if_nans;
 
 if any(pressure<0)
@@ -71,6 +84,16 @@ end
 
 if isempty(pressureTropopause)
    pressureTropopause = min(pressure);
+end
+
+if isempty(interpPres)
+    if nargout > 2
+        E.callError('nargout','Without any interpPres values, p_out and f_out will not be set');
+    end
+else
+    % Make sure the interpolation pressure is within the pressure vector
+    % given.
+    interpPres = clipmat(interpPres, min(pressure), max(pressure));
 end
 
 %   mean molecular mass (kg)  *  g (m/s2)  *  (Pa/hPa)   *   (m2/cm2)
@@ -89,6 +112,28 @@ n    = numel(p);
 dvcd     = 0;
 deltaVcd_lno = zeros(numel(f_lno),1); % Changed to make these vectors on 9/26/2014 JLL
 deltaVcd_lno2 = zeros(numel(f_lno2),1); % Changed to make these vectors on 9/26/2014 JLL
+
+numIP = numel(interpPres);
+if numIP > 0 
+    if ~iscolumn(p)
+        p_out = p'; 
+    else
+        p_out = p;
+    end 
+    flno_out = f_lno;
+    flno2_out = f_lno2;
+    for a=1:numIP
+        if all(p~=interpPres(a))
+            flno_i = interpolate_surface_pressure(p,f_lno,interpPres(a));
+            flno2_i = interpolate_surface_pressure(p,f_lno2,interpPres(a));
+            bottom = p_out > interpPres(a);
+            top = p_out < interpPres(a);
+            p_out = [p_out(bottom); interpPres(a); p_out(top)];
+            flno_out = [flno_out(bottom); flno_i; flno_out(top)];
+            flno2_out = [flno2_out(bottom); flno2_i; flno2_out(top)];
+        end 
+    end 
+end
 
 % If the surface pressure is above the tropopause pressure, i.e. the lower
 % integration limit is above the upper integration limit, return 0 b/c

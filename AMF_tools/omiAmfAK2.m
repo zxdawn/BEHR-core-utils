@@ -1,7 +1,7 @@
 %OMIAMFAK2 - Compute OMI AMFs and AKs given scattering weights and NO2 profiles
 %
 %   [ amf, amfVis, amf_lnox, amf_lnox_pickering, amfCld, amfClr, sc_weights, avgKernel, no2ProfileInterp,
-%     swPlev ] = omiAmfAK2( pTerr, pCld, cldFrac, cldRadFrac, pressure, 
+%     lnoProfileInterp, lno2ProfileInterp, swPlev ] = omiAmfAK2( pTerr, pCld, cldFrac, cldRadFrac, pressure, 
 %     dAmfClr, dAmfCld, temperature, no2Profile, lnoProfile, lno2Profile) 
 %
 %   INPUTS:
@@ -37,6 +37,11 @@
 %           interpolated to the surface and cloud pressure.
 %       no2ProfileInterp - the NO2 profiles used for each pixel, interpolated to the surface and cloud
 %           pressures as well.
+%       lnoProfileInterp - the LNO profiles used for each pixel, interpolated to the surface and cloud
+%           pressures as well.
+%       lno2ProfileInterp - the LNO2 profiles used for each pixel, interpolated to the surface and cloud
+%           pressures as well.
+%       vcd_lno2_700 - Modeled LNO2 VCD above 700 hPa 
 %       swPlev - the 3D array of pressures as vertical coordinates for each pixel. Contains the standard
 %           pressures from the input "pressure" plus surface and cloud pressures, if different from all the
 %           standard pressures.
@@ -86,11 +91,12 @@
 %
 %   Josh Laughner <joshlaugh5@gmail.com> 
 
-%   Xin 14 May 2018: added ouput for amf_lnox
-%   Xin 01 Aug 2018: added ouput for amf_lnox_pickering
+%   Xin 14 May 2018: added output for amf_lnox
+%   Xin 01 Aug 2018: added output for amf_lnox_pickering
+%   Xin 16 Dec 2018: added output for no2ProfileInterp, lnoProfileInterp, lno2ProfileInterp, vcd_lno2_700 
 %   Xin Zhang <xinzhang1215@gmail.com>
 
-function [amf, amfVis, amf_lnox, amf_lnox_pickering, amfCld, amfClr, sc_weights_clr, sc_weights_cld, avgKernel, no2ProfileInterp, swPlev ] = omiAmfAK2(pTerr, pTropo, pCld, cldFrac, cldRadFrac, pressure, dAmfClr, dAmfCld, temperature, no2Profile, lnoProfile, lno2Profile)
+function [amf, amfVis, amf_lnox, amf_lnox_pickering, amfCld, amfClr, sc_weights_clr, sc_weights_cld, avgKernel, no2ProfileInterp, lnoProfileInterp, lno2ProfileInterp, vcd_lno2_700, swPlev ] = omiAmfAK2(pTerr, pTropo, pCld, cldFrac, cldRadFrac, pressure, dAmfClr, dAmfCld, temperature, no2Profile, lnoProfile, lno2Profile)
 
 % Each profile is expected to be a column in the no2Profile matrix.  Check
 % for this by ensuring that the first dimension of both profile matrices
@@ -123,7 +129,9 @@ alpha = min(alpha_i,10,'includenan');
 vcdGnd=nan(size(pTerr));
 vcdCld=nan(size(pTerr));
 vcdLtng=nan(size(pTerr));
+vcdLtng_700=nan(size(pTerr));
 vcd_lno2=nan(size(pTerr));
+vcd_lno2_700=nan(size(pTerr));
 amfClr=nan(size(pTerr));
 amfCld=nan(size(pTerr));
 amf_lnox=nan(size(pTerr));
@@ -143,6 +151,8 @@ swPlev=nan(size(no2Profile)+padvec);
 swClr=nan(size(no2Profile)+padvec);
 swCld=nan(size(no2Profile)+padvec);
 no2ProfileInterp=nan(size(no2Profile)+padvec);
+lnoProfileInterp=nan(size(lnoProfile)+padvec);
+lno2ProfileInterp=nan(size(lno2Profile)+padvec);
 nP = size(swPlev,1);
 
 
@@ -187,6 +197,7 @@ for i=1:numel(pTerr)
     % Because vcdLtng(i) can't be 0, We must calculate amf_lnox and amf_lnox_pickering now.
     if cldFrac(i) ~= 0 && cldRadFrac(i) ~= 0 && pCld(i)>pTropo(i)
         [vcdLtng(i), vcd_lno2(i)] = integPr2_lnox(lnoProfile(:,i), lno2Profile(:,i), pressure, pTerr(i), pTropo(i), 'fatal_if_nans', true);
+        [vcdLtng_700(i), vcd_lno2_700(i)] = integPr2_lnox(lnoProfile(:,i), lno2Profile(:,i), pressure, 700, pTropo(i));
         amf_lnox(i) = (cldRadFrac(i) .* amfCld(i) + (1-cldRadFrac(i)).*amfClr(i)) .* vcdGnd(i) ./ vcdLtng(i);
         amf_lnox_pickering(i) = (cldRadFrac(i) .* amfCld(i) + (1-cldRadFrac(i)).*amfClr(i)) .* vcd_lno2(i) ./ vcdLtng(i);
     end
@@ -197,6 +208,7 @@ for i=1:numel(pTerr)
     % published unified scattering weights, so this probably still helps
     % with the averaging kernels
     [~, ~, this_no2ProfileInterp] = integPr2(no2Profile(:,i), pressure, pTerr(i), pTropo(i), 'interp_pres', [pTerr(i), pCld(i),pTropo(i)], 'fatal_if_nans', true);
+    [~, ~, ~, this_lnoProfileInterp, this_lno2ProfileInterp] = integPr2_lnox(lnoProfile(:,i), lno2Profile(:,i), pressure, pTerr(i), pTropo(i), 'interp_pres', [pTerr(i), pCld(i),pTropo(i)], 'fatal_if_nans', true);
     [~,this_swPlev,this_swClr] = integPr2((dAmfClr(:,i).*alpha(:,i)), pressure, pTerr(i), pTropo(i), 'interp_pres', [pTerr(i), pCld(i),pTropo(i)], 'fatal_if_nans', true);
     [~,~,this_swCld] = integPr2((dAmfCld(:,i).*alpha(:,i)), pressure, pCld(i), pTropo(i), 'interp_pres', [pTerr(i), pCld(i),pTropo(i)], 'fatal_if_nans', true);
     
@@ -208,6 +220,10 @@ for i=1:numel(pTerr)
         E.badvar('this_swCld', 'Must be a column vector');
     elseif ~iscolumn(this_no2ProfileInterp)
         E.badvar('this_no2ProfileInterp', 'Must be a column vector');
+    elseif ~iscolumn(this_lnoProfileInterp)
+        E.badvar('this_lnoProfileInterp', 'Must be a column vector');
+    elseif ~iscolumn(this_lno2ProfileInterp)
+        E.badvar('this_lno2ProfileInterp', 'Must be a column vector');
     end
     
     % Pad with NaNs if there are fewer than nP (number of pressures in the
@@ -218,11 +234,14 @@ for i=1:numel(pTerr)
     this_swClr = padarray(this_swClr, nP -  length(this_swClr), nan, 'post');
     this_swCld = padarray(this_swCld, nP - length(this_swCld), nan, 'post');
     this_no2ProfileInterp = padarray(this_no2ProfileInterp, nP - length(this_no2ProfileInterp), nan, 'post');
+    this_lnoProfileInterp = padarray(this_lnoProfileInterp, nP - length(this_lnoProfileInterp), nan, 'post');
+    this_lno2ProfileInterp = padarray(this_lno2ProfileInterp, nP - length(this_lno2ProfileInterp), nan, 'post');
     
     swPlev(:,i) = this_swPlev;
     swClr(:,i) = this_swClr;
     swCld(:,i) = this_swCld;
     no2ProfileInterp(:,i) = this_no2ProfileInterp;
+    lnoProfileInterp(:,i) = this_lnoProfileInterp;
 
 end
 
@@ -283,7 +302,7 @@ amf_lnox_pickering(~isnan(amf_lnox_pickering)) = max(amf_lnox_pickering(~isnan(a
 % Now compute averaging kernel %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-if nargout > 4
+if nargout > 6
     % This is only done for the total column, on the assumption that most
     % modelers would want to compare total column against their modeled
     % column.
