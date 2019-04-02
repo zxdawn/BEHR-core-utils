@@ -1,6 +1,6 @@
 %OMIAMFAK2 - Compute OMI AMFs and AKs given scattering weights and NO2 profiles
 %
-%   [ amf, amfVis, amf_lnox, amf_lnox_pickering, amfCld, amfClr, sc_weights, avgKernel, no2ProfileInterp,
+%   [ amf, amfVis, amf_lnox, amf_lnox_Vis, amf_lnox_pickering, amfCld, amfClr, sc_weights, avgKernel, no2ProfileInterp,
 %     lnoProfileInterp, lno2ProfileInterp, swPlev ] = omiAmfAK2( pTerr, pCld, cldFrac, cldRadFrac, pressure, 
 %     dAmfClr, dAmfCld, temperature, no2Profile, lnoProfile, lno2Profile) 
 %
@@ -27,7 +27,11 @@
 %           ghost column below clouds).
 %       amfVis - the 2D array of AMFs for each pixel that will yield only visible columns (so EXCLUDING
 %           ghost column below clouds)
+%       amf_lno2 - the 2D array of AMFs for each pixel that will yield total lno2 columns
 %       amf_lnox - the 2D array of AMFs for each pixel that will yield total lnox columns
+%       amf_lno2_Vis - the 2D array of AMFs for each pixel that will yield visible lno2 columns
+%       amf_lnox_Vis - the 2D array of AMFs for each pixel that will yield visible lnox columns
+%       amf_lno2_pickering - the 2D array of AMFs for each pixel that will yield total lno2 columns (Pickering et al. 2016)
 %       amf_lnox_pickering - the 2D array of AMFs for each pixel that will yield total lnox columns (Pickering et al. 2016)
 %       amfCld - the 2D array of cloudy AMFs that are used for the total column AMF.
 %       amfClr - the 2D array of clear sky AMFs, used for both AMFs.
@@ -41,7 +45,6 @@
 %           pressures as well.
 %       lno2ProfileInterp - the LNO2 profiles used for each pixel, interpolated to the surface and cloud
 %           pressures as well.
-%       vcd_lno2_700 - Modeled LNO2 VCD above 700 hPa 
 %       swPlev - the 3D array of pressures as vertical coordinates for each pixel. Contains the standard
 %           pressures from the input "pressure" plus surface and cloud pressures, if different from all the
 %           standard pressures.
@@ -92,11 +95,13 @@
 %   Josh Laughner <joshlaugh5@gmail.com> 
 
 %   Xin 14 May 2018: added output for amf_lnox
+%   Xin 16 Jan 2019: added output for amf_lnox_Vis
 %   Xin 01 Aug 2018: added output for amf_lnox_pickering
-%   Xin 16 Dec 2018: added output for no2ProfileInterp, lnoProfileInterp, lno2ProfileInterp, vcd_lno2_700 
+%   Xin 16 Dec 2018: added output for no2ProfileInterp, lnoProfileInterp and lno2ProfileInterp 
+%   Xin 05 Mar 2019: added output for amf_lno2, amf_lno2_Vis and amf_lno2_pickering
 %   Xin Zhang <xinzhang1215@gmail.com>
 
-function [amf, amfVis, amf_lnox, amf_lnox_pickering, amfCld, amfClr, sc_weights_clr, sc_weights_cld, avgKernel, no2ProfileInterp, lnoProfileInterp, lno2ProfileInterp, vcd_lno2_700, swPlev ] = omiAmfAK2(pTerr, pTropo, pCld, cldFrac, cldRadFrac, pressure, dAmfClr, dAmfCld, temperature, no2Profile, lnoProfile, lno2Profile)
+function [amf, amfVis, amf_lno2, amf_lno2_Vis, amf_lno2_pickering, amf_lnox, amf_lnox_Vis, amf_lnox_pickering, amfCld, amfClr, sc_weights_clr, sc_weights_cld, avgKernel, no2ProfileInterp, lnoProfileInterp, lno2ProfileInterp, vcd_lno2_Vis, vcd_lno2_Vis_ratio, swPlev ] = omiAmfAK2(pTerr, pTropo, pCld, cldFrac, cldRadFrac, pressure, dAmfClr, dAmfCld, temperature, no2Profile, lnoProfile, lno2Profile)
 
 % Each profile is expected to be a column in the no2Profile matrix.  Check
 % for this by ensuring that the first dimension of both profile matrices
@@ -129,12 +134,19 @@ alpha = min(alpha_i,10,'includenan');
 vcdGnd=nan(size(pTerr));
 vcdCld=nan(size(pTerr));
 vcdLtng=nan(size(pTerr));
-vcdLtng_700=nan(size(pTerr));
+vcdLtng_Vis=nan(size(pTerr));
 vcd_lno2=nan(size(pTerr));
-vcd_lno2_700=nan(size(pTerr));
+vcd_lno2_Vis=nan(size(pTerr));
+vcd_lno2_Vis_ratio=nan(size(pTerr));
 amfClr=nan(size(pTerr));
+amfClr_lno2=nan(size(pTerr));
 amfCld=nan(size(pTerr));
+amfCld_lno2=nan(size(pTerr));
+amf_lno2=nan(size(pTerr));
+amf_lno2_Vis=nan(size(pTerr));
+amf_lno2_pickering=nan(size(pTerr));
 amf_lnox=nan(size(pTerr));
+amf_lnox_Vis=nan(size(pTerr));
 amf_lnox_pickering=nan(size(pTerr));
 
 
@@ -157,9 +169,11 @@ nP = size(swPlev,1);
 
 
 for i=1:numel(pTerr)
-    no2Profile_i = no2Profile(:,i);
-    clearSW_i = no2Profile(:,i) .* dAmfClr(:,i) .* alpha(:,i);
-    cloudySW_i = (no2Profile(:,i) .* dAmfCld(:,i) .* alpha(:,i));
+    no2Profile_i    = no2Profile(:,i);
+    clearSW_i       = no2Profile(:,i) .* dAmfClr(:,i) .* alpha(:,i);
+    clearSW_lno2_i  = lno2Profile(:,i) .* dAmfClr(:,i) .* alpha(:,i);
+    cloudySW_i      = (no2Profile(:,i) .* dAmfCld(:,i) .* alpha(:,i));
+    cloudySW_lno2_i = (lno2Profile(:,i) .* dAmfCld(:,i) .* alpha(:,i));
     
     if all(isnan(no2Profile_i)) || all(isnan(clearSW_i)) || all(isnan(cloudySW_i))
         % 16 Apr 2018: found that AMFs were still being calculated if all
@@ -174,6 +188,7 @@ for i=1:numel(pTerr)
     end
     
     vcdGnd(i) = integPr2(no2Profile(:,i), pressure, pTerr(i), pTropo(i), 'fatal_if_nans', true);
+    vcdGnd_lno2(i) = integPr2(lno2Profile(:,i), pressure, pTerr(i), pTropo(i), 'fatal_if_nans', true);
     if cldFrac(i) ~= 0 && cldRadFrac(i) ~= 0 && pCld(i)>pTropo(i)
         vcdCld(i) = integPr2(no2Profile(:,i), pressure, pCld(i), pTropo(i), 'fatal_if_nans', true);
     else
@@ -182,24 +197,35 @@ for i=1:numel(pTerr)
     
     if cldFrac(i) ~= 1 && cldRadFrac(i) ~= 1
         amfClr(i) = integPr2(clearSW_i, pressure, pTerr(i), pTropo(i), 'fatal_if_nans', true) ./ vcdGnd(i);
+        amfClr_lno2(i) = integPr2(clearSW_lno2_i, pressure, pTerr(i), pTropo(i), 'fatal_if_nans', true) ./ vcdGnd_lno2(i);
     else
         amfClr(i)=0;
     end
     
     if cldFrac(i) ~= 0 && cldRadFrac(i) ~= 0 && pCld(i)>pTropo(i)
-        cldSCD=integPr2(cloudySW_i, pressure, pCld(i), pTropo(i), 'fatal_if_nans', true);
-        amfCld(i) = cldSCD ./ vcdGnd(i);
+        cldSCD      = integPr2(cloudySW_i, pressure, pCld(i), pTropo(i), 'fatal_if_nans', true);
+        cldSCD_lno2 = integPr2(cloudySW_lno2_i, pressure, pCld(i), pTropo(i), 'fatal_if_nans', true);
+        amfCld(i)      = cldSCD ./ vcdGnd(i);
+        amfCld_lno2(i) = cldSCD_lno2 ./ vcdGnd_lno2(i);
     else
         amfCld(i)=0;
     end
 
     % Xin 14 May 2018
-    % Because vcdLtng(i) can't be 0, We must calculate amf_lnox and amf_lnox_pickering now.
+    % Because vcdLtng(i) can't be 0, We must calculate amf related to lighting now.
     if cldFrac(i) ~= 0 && cldRadFrac(i) ~= 0 && pCld(i)>pTropo(i)
         [vcdLtng(i), vcd_lno2(i)] = integPr2_lnox(lnoProfile(:,i), lno2Profile(:,i), pressure, pTerr(i), pTropo(i), 'fatal_if_nans', true);
-        [vcdLtng_700(i), vcd_lno2_700(i)] = integPr2_lnox(lnoProfile(:,i), lno2Profile(:,i), pressure, 700, pTropo(i));
+        [vcdLtng_Vis(i), vcd_lno2_Vis(i)] = integPr2_lnox(lnoProfile(:,i), lno2Profile(:,i), pressure, pCld(i), pTropo(i));
+
+        vcd_lno2_Vis_ratio(i) = vcd_lno2_Vis(i) ./ vcdCld(i);
+
+        amf_lno2(i) = (cldRadFrac(i) .* amfCld(i) + (1-cldRadFrac(i)).*amfClr(i)) .* vcdGnd(i) ./ vcd_lno2(i);
+        amf_lno2_Vis(i) = (cldRadFrac(i) .* amfCld(i) + (1-cldRadFrac(i)).*amfClr(i)) .* vcdGnd(i) ./ vcd_lno2_Vis(i);
+        amf_lno2_pickering(i) = (cldRadFrac(i) .* amfCld_lno2(i) + (1-cldRadFrac(i)).*amfClr_lno2(i)) .* vcd_lno2(i) ./ vcd_lno2(i);
+
         amf_lnox(i) = (cldRadFrac(i) .* amfCld(i) + (1-cldRadFrac(i)).*amfClr(i)) .* vcdGnd(i) ./ vcdLtng(i);
-        amf_lnox_pickering(i) = (cldRadFrac(i) .* amfCld(i) + (1-cldRadFrac(i)).*amfClr(i)) .* vcd_lno2(i) ./ vcdLtng(i);
+        amf_lnox_Vis(i) = (cldRadFrac(i) .* amfCld(i) + (1-cldRadFrac(i)).*amfClr(i)) .* vcdGnd(i) ./ vcdLtng_Vis(i);
+        amf_lnox_pickering(i) = (cldRadFrac(i) .* amfCld_lno2(i) + (1-cldRadFrac(i)).*amfClr_lno2(i)) .* vcd_lno2(i) ./ vcdLtng(i);
     end
     % JLL 19 May 2015:
     % Added these lines to interpolate to the terrain & cloud pressures and
@@ -259,7 +285,12 @@ amf(~isnan(amf)) = max(amf(~isnan(amf)), behr_min_amf_val());   % clamp at min v
 amfVis = amf .* vcdGnd ./ (vcdCld .* cldFrac + vcdGnd .* (1 - cldFrac));
 amfVis(~isnan(amfVis)) = max(amfVis(~isnan(amfVis)), behr_min_amf_val());
 
+amf_lno2(~isnan(amf_lnox)) = max(amf_lno2(~isnan(amf_lno2)), behr_min_amf_val());
+amf_lno2_Vis(~isnan(amf_lnox)) = max(amf_lno2_Vis(~isnan(amf_lno2_Vis)), behr_min_amf_val());
+amf_lno2_pickering(~isnan(amf_lnox_pickering)) = max(amf_lno2_pickering(~isnan(amf_lno2_pickering)), behr_min_amf_val());
+
 amf_lnox(~isnan(amf_lnox)) = max(amf_lnox(~isnan(amf_lnox)), behr_min_amf_val());
+amf_lnox_Vis(~isnan(amf_lnox)) = max(amf_lnox_Vis(~isnan(amf_lnox_Vis)), behr_min_amf_val());
 amf_lnox_pickering(~isnan(amf_lnox_pickering)) = max(amf_lnox_pickering(~isnan(amf_lnox_pickering)), behr_min_amf_val());
 
 % There is an alternate way of calculating a visible-only AMF: calculate a
@@ -302,7 +333,7 @@ amf_lnox_pickering(~isnan(amf_lnox_pickering)) = max(amf_lnox_pickering(~isnan(a
 % Now compute averaging kernel %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-if nargout > 6
+if nargout > 10
     % This is only done for the total column, on the assumption that most
     % modelers would want to compare total column against their modeled
     % column.
