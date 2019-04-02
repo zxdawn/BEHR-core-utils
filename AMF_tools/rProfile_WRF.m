@@ -68,7 +68,10 @@ function [ no2_bins, lno_bins, lno2_bins, cldfra_bins, temp_bins, wrf_file, Surf
 %       to "false" there will be no error checking of the units in WRF
 %       files.
 %
+%       multiple_profile: multiple the lno2 profile for uncertainty analysis.
+%
 %   Josh Laughner <joshlaugh5@gmail.com> 22 Jul 2015
+%   Xin Zhang <xinzhang1215@gmail.com> 14 Jan 2019
 
 E = JLLErrors;
 
@@ -76,6 +79,7 @@ parser = inputParser;
 parser.addOptional('wrf_output_path', '', @ischar);
 parser.addParameter('err_missing_att', true);
 parser.addParameter('clip_at_int_limits', true);
+parser.addParameter('multiple_profile', false);
 parser.addParameter('DEBUG_LEVEL', 1);
 
 parser.parse(varargin{:});
@@ -85,6 +89,7 @@ DEBUG_LEVEL = pout.DEBUG_LEVEL;
 error_if_missing_attr = pout.err_missing_att;
 wrf_output_path = pout.wrf_output_path;
 clip_at_int_limits = pout.clip_at_int_limits;
+multiple_profile = pout.multiple_profile;
 
 if ~isnumeric(DEBUG_LEVEL) || ~isscalar(DEBUG_LEVEL)
     E.badinput('DEBUG_LEVEL must be a scalar number')
@@ -225,6 +230,18 @@ wrf_cldfra = reshape(wrf_cldfra, 1, num_profs);
 wrf_lon = reshape(wrf_lon, 1, num_profs);
 wrf_lat = reshape(wrf_lat, 1, num_profs);
 wrf_tropopres = reshape(wrf_tropopres, 1, num_profs);
+
+% Constrain negative lno2 and lno to zero
+%wrf_no2(wrf_no2<0)   = 1e-30;
+wrf_lno(wrf_lno<0)   = 1e-30;
+wrf_lno2(wrf_lno2<0) = 1e-30;
+
+% Used for uncertainty analysis.
+% Multiple the profile.
+if multiple_profile
+    wrf_no2     = wrf_no2 + wrf_lno2*(2.5-1);
+    wrf_lno2    = wrf_lno2*2.5;
+end 
 
 lons = squeeze(nanmean(loncorns,1));
 lats = squeeze(nanmean(latcorns,1));
