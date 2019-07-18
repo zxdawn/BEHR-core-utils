@@ -268,6 +268,7 @@ for i=1:numel(pTerr)
     swCld(:,i) = this_swCld;
     no2ProfileInterp(:,i) = this_no2ProfileInterp;
     lnoProfileInterp(:,i) = this_lnoProfileInterp;
+    lno2ProfileInterp(:,i) = this_lno2ProfileInterp;
 
 end
 
